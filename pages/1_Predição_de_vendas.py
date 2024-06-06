@@ -5,6 +5,7 @@ from PIL import Image
 import pandas as pd
 import streamlit as st
 import array as np
+import sklearn
 from numpy import int64 as npint64
 from fc import fc_download_s3 as ds3
 
