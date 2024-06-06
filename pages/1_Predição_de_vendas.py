@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 import array as np
 import sklearn
+import joblib
 from numpy import int64 as npint64
 from fc import fc_download_s3 as ds3
 
@@ -33,7 +34,8 @@ def le_arquivo_vendas():
 def le_arquivo_modelo():
     global dir_modelos
     global arq_modelos    
-    return pd.read_pickle(dir_modelos + barra + arq_modelos)
+    #return pd.read_pickle(dir_modelos + barra + arq_modelos)
+    return joblib.load(dir_modelos + barra + arq_modelos)
     
 #------------------- INÍCIO
 
@@ -128,10 +130,6 @@ with tab1:
     with st.container():
         # Faz a predição da quantidade que será vendida por produto e dia da semana
         st.header( 'Faz a predição da quantidade que será vendida por produto e dia da semana' )
-
-        #[['preco_unitario', 'custo', 'imposto','dia_semana', 'feriado', 'tipo_cliente_nro', \
-        #        'genero_nro', 'linha_produto_nro', 'moeda_nro']]
-        #[['qtde']]
 
         X_enter = [73.00, 435.66, 21.783, 0, 0, 1, 0, 5, 1]
         X_enter = pd.DataFrame(X_enter)
