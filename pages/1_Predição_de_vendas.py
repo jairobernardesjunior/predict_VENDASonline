@@ -7,7 +7,6 @@ import streamlit as st
 import array as np
 from numpy import int64 as npint64
 from fc import fc_download_s3 as ds3
-import pickle
 
 # define a exibição total de linhas e colunas na exibição
 #pd.set_option('display.max_rows', None)
