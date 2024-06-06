@@ -1,16 +1,11 @@
 # Cria os insights sobre ocorrências de acidentes aeronáuticos
 
 # importa as bibliotecas
-#from haversine import haversine
-# datetime import datetime
 from PIL import Image
-#from streamlit_folium import folium_static
-#import plotly.express as px
-#import plotly.graph_objects as go
 import pandas as pd
 import streamlit as st
 import array as np
-#import plotly.express as px
+from numpy import int64 as npint64
 from fc import fc_download_s3 as ds3
 import pickle
 
@@ -145,10 +140,19 @@ with tab1:
         X_enter.columns = ['preco_unitario', 'custo', 'imposto','dia_semana', 'feriado', 'tipo_cliente_nro', \
                            'genero_nro', 'linha_produto_nro', 'moeda_nro']
         
+        X_enter['dia_semana'] = X_enter['dia_semana'].astype(npint64)
+        X_enter['feriado'] = X_enter['feriado'].astype(npint64)
+        X_enter['tipo_cliente_nro'] = X_enter['tipo_cliente_nro'].astype(npint64)
+        X_enter['genero_nro'] = X_enter['genero_nro'].astype(npint64)
+        X_enter['linha_produto_nro'] = X_enter['linha_produto_nro'].astype(npint64)
+        X_enter['moeda_nro'] = X_enter['moeda_nro'].astype(npint64)
+
         print(X_enter.info())
+        
+        st.write(X_enter)
 
         qtde_vds = Dtree_model.predict(X_enter)
-        #st.write(qtde_vds)
+        st.write(qtde_vds)
 
         # Faz um predict(predição) e avalia o modelo
         # Na avaliação do modelo utilizando os dados de teste e os dados da predição vemos que os scores ficaram satisfatoriamente
