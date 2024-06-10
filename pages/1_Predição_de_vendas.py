@@ -45,7 +45,7 @@ dir_par = 'parametros'
 dir_S3 = 'vendas-supermarket-s3'
 dir_S3_tratados = 'vendas-supermarket-s3-tratados'
 dir_S3_modelos = 'vendas-supermarket-s3-modelos'
-arq_dados = 'supermarket_sales.csv'
+arq_dados = 'X_supermarket_sales.csv'
 arq_keys = 'parametros/chaves_acesso.txt'
 barra = '/'
 
@@ -131,28 +131,42 @@ with tab1:
         # Faz a predição da quantidade que será vendida por produto e dia da semana
         st.header( 'Faz a predição da quantidade que será vendida por produto e dia da semana' )
 
-        X_enter = [73.00, 435.66, 21.783, 0, 0, 1, 0, 5, 1]
-        X_enter = pd.DataFrame(X_enter)
-        X_enter = X_enter.T
+        dfx = df_vendas[['linha_produto_nro', 'mes', 'dia', 'preco_unitario', 'custo', 'dia_semana', 'feriado',]]
+        dfx2 = df_vendas[['linha_produto', 'qtde', 'linha_produto_nro', 'mes', 'dia', 'preco_unitario', 'custo', 'dia_semana', 'feriado',]]
 
-        X_enter.columns = ['preco_unitario', 'custo', 'imposto','dia_semana', 'feriado', 'tipo_cliente_nro', \
-                           'genero_nro', 'linha_produto_nro', 'moeda_nro']
-        
-        X_enter['dia_semana'] = X_enter['dia_semana'].astype(npint64)
-        X_enter['feriado'] = X_enter['feriado'].astype(npint64)
-        X_enter['tipo_cliente_nro'] = X_enter['tipo_cliente_nro'].astype(npint64)
-        X_enter['genero_nro'] = X_enter['genero_nro'].astype(npint64)
-        X_enter['linha_produto_nro'] = X_enter['linha_produto_nro'].astype(npint64)
-        X_enter['moeda_nro'] = X_enter['moeda_nro'].astype(npint64)
+        st.write(dfx2)
 
-        print(X_enter.info())
-        
-        st.write(X_enter)
-
-        qtde_vds = Dtree_model.predict(X_enter)
+        dfx['preco_unitario'] = dfx['preco_unitario'] * 0.10
+        qtde_vds = Dtree_model.predict(dfx)
         st.write(qtde_vds)
+        exit()
 
-        # Faz um predict(predição) e avalia o modelo
-        # Na avaliação do modelo utilizando os dados de teste e os dados da predição vemos que os scores ficaram satisfatoriamente
-        # altos, próximo a 1 ou 100% e os erros absoluto e quadrático ficaram bem próximo de zero o que é excelente
-        #qtde_vds = Dtree_model.predict(X_test)
+
+        #[73.00, 435.66, 21.783, 0, 0, 1, 0, 5, 1]
+        #X_enter = [2.00, 1.66, 21.783, 0, 0, 1, 0, 5, 1]
+        #X_enter = pd.DataFrame(X_enter)
+        #X_enter = X_enter.T
+        #X_enter2 = [5.00, 435.66, 21.783, 0, 0, 1, 0, 5, 1]
+        #X_enter2 = pd.DataFrame(X_enter2)        
+        #X_enter2 = X_enter2.T
+
+        #X_enter.columns = ['preco_unitario', 'custo', 'imposto','dia_semana', 'feriado', 'tipo_cliente_nro', \
+        #                   'genero_nro', 'linha_produto_nro', 'moeda_nro']
+        #X_enter2.columns = ['preco_unitario', 'custo', 'imposto','dia_semana', 'feriado', 'tipo_cliente_nro', \
+        #                   'genero_nro', 'linha_produto_nro', 'moeda_nro']     
+
+        #X_enter = pd.concat([X_enter, X_enter2], axis=0)   
+        
+        #X_enter['dia_semana'] = X_enter['dia_semana'].astype(npint64)
+        #X_enter['feriado'] = X_enter['feriado'].astype(npint64)
+        #X_enter['tipo_cliente_nro'] = X_enter['tipo_cliente_nro'].astype(npint64)
+        #X_enter['genero_nro'] = X_enter['genero_nro'].astype(npint64)
+        #X_enter['linha_produto_nro'] = X_enter['linha_produto_nro'].astype(npint64)
+        #X_enter['moeda_nro'] = X_enter['moeda_nro'].astype(npint64)
+
+        #print(X_enter.info())
+        
+        #st.write(X_enter)
+
+        #qtde_vds = Dtree_model.predict(X_enter)
+        #st.write(qtde_vds)
