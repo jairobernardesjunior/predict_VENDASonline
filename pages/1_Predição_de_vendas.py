@@ -9,18 +9,24 @@ import sklearn
 import joblib
 from numpy import int64 as npint64
 from fc import fc_download_s3 as ds3
+import findspark
+from pyspark.sql import SparkSession
 
 # define a exibição total de linhas e colunas na exibição
 #pd.set_option('display.max_rows', None)
 #pd.set_option('display.max_columns', None)
-#import warnings
-#warnings.simplefilter('ignore')
+import warnings
+warnings.simplefilter('ignore')
 
 # variáveis globais
 dir_dados_tratados = 'arquivos_tratados'
 dir_modelos = 'modelos'
 arq_dados_tratados = 'df_supermarket_sales.csv' 
 arq_modelos = 'dtree_model_vendasSupermarket.pkl'
+    
+# cria uma sessão spark
+findspark.init('c:/spark') 
+spk_session = SparkSession.builder.appName('my_app').getOrCreate()
 
 # faz a leitura do arquivo e coloca na memória
 @st.cache_data
@@ -34,7 +40,6 @@ def le_arquivo_vendas():
 def le_arquivo_modelo():
     global dir_modelos
     global arq_modelos    
-    #return pd.read_pickle(dir_modelos + barra + arq_modelos)
     return joblib.load(dir_modelos + barra + arq_modelos)
     
 #------------------- INÍCIO
@@ -98,6 +103,14 @@ df_vendas = le_arquivo_vendas()
 # le o arquivo de modelo para fazer predição
 Dtree_model = le_arquivo_modelo()
 
+# cria df da sessão spark com o conteúdo de df_vendas
+sdf = spk_session.createDataFrame(df_vendas)
+
+xx = spk_session.read.csv(dir_dados_tratados + barra + arq_dados_tratados, header=True)
+xxxx = xx.toPandas()
+xx.show()
+print(xxxx)
+
 #----------------------------------------------
 # Barra lateral sidebar
 #----------------------------------------------
@@ -131,10 +144,10 @@ with tab1:
         # Faz a predição da quantidade que será vendida por produto e dia da semana
         st.header( 'Faz a predição da quantidade que será vendida por produto e dia da semana' )
 
-        dfx = df_vendas[['linha_produto_nro', 'mes', 'dia', 'preco_unitario', 'custo', 'dia_semana', 'feriado',]]
-        dfx2 = df_vendas[['linha_produto', 'qtde', 'linha_produto_nro', 'mes', 'dia', 'preco_unitario', 'custo', 'dia_semana', 'feriado',]]
+        dfx = df_vendas[['linha_produto_nro', 'mes', 'dia', 'preco_unitario', 'custo', 'dia_semana', 'feriado']]
+        dfx2 = df_vendas[['linha_produto', 'qtde', 'linha_produto_nro', 'mes', 'dia', 'preco_unitario', 'custo', 'dia_semana', 'feriado']]
 
-        st.write(dfx2)
+        st.write(sdf)
 
         dfx['preco_unitario'] = dfx['preco_unitario'] * 0.10
         qtde_vds = Dtree_model.predict(dfx)
