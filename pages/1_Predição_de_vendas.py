@@ -2,15 +2,18 @@
 
 # importa as bibliotecas
 from PIL import Image
+from numpy import int64 as npint64
+from pyspark.sql import SparkSession
+
 import pandas as pd
 import streamlit as st
 import array as np
 import sklearn
 import joblib
-from numpy import int64 as npint64
-from fc import fc_download_s3 as ds3
+import boto3
+import botocore
 import findspark
-from pyspark.sql import SparkSession
+import requests
 
 # define a exibição total de linhas e colunas na exibição
 #pd.set_option('display.max_rows', None)
@@ -21,12 +24,74 @@ warnings.simplefilter('ignore')
 # variáveis globais
 dir_dados_tratados = 'arquivos_tratados'
 dir_modelos = 'modelos'
-arq_dados_tratados = 'df_supermarket_sales.csv' 
+arq_dados_tratados = 'X_supermarket_sales.csv' 
 arq_modelos = 'dtree_model_vendasSupermarket.pkl'
     
 # cria uma sessão spark
 findspark.init('c:/spark') 
 spk_session = SparkSession.builder.appName('my_app').getOrCreate()
+
+# faz o download de arquivo armazenado em bucket s3 da aws
+def download_s3(nome_buckets3, nome_arquivo, path_arquivo, access_key, secret_key, regiao):
+    client = boto3.client(
+        service_name= 's3',
+        aws_access_key_id= access_key,
+        aws_secret_access_key= secret_key,
+        region_name= regiao # voce pode usar qualquer regiao
+        )    
+
+    retorno = ''
+
+    try:
+        client.download_file(nome_buckets3, nome_arquivo, path_arquivo)
+        retorno = 'ok'
+    except botocore.exceptions.ClientError as e:
+        # if e.response['Error']['Code'] == "404":
+        retorno = e.response['Error']
+
+    return retorno
+
+# faz leitura do arquivo de vendas consumindo a api 'vendas' do api_server
+@st.cache_data
+def le_arquivo_vendas_consome_api():
+    url = ' http://127.0.0.1:5000/vendas/'
+
+    #url = ' http://localhost:5000/vendas/'
+
+    df_vendas = requests.get(url)
+    df_vendas = pd.DataFrame(df_vendas)
+    
+    df_vendas['linha_produto_nro'] = df_vendas['linha_produto_nro'].astype(npint64)
+    df_vendas['ano'] = df_vendas['ano'].astype(npint64)
+    df_vendas['mes'] = df_vendas['mes'].astype(npint64)
+    df_vendas['dia'] = df_vendas['dia'].astype(npint64)
+    df_vendas['preco_unitario'] = df_vendas['preco_unitario'].astype(float)
+    df_vendas['custo'] = df_vendas['custo'].astype(float)  
+    df_vendas['dia_semana'] = df_vendas['dia_semana'].astype(npint64)  
+    df_vendas['feriado'] = df_vendas['feriado'].astype(npint64)
+    df_vendas['qtde'] = df_vendas['qtde'].astype(float)
+
+    return df_vendas
+
+# faz leitura do arquivo de vendas usando a sessão do spark
+@st.cache_data
+def le_arquivo_vendas_spark():
+    global dir_dados_tratados
+    global arq_dados_tratados 
+    df_vendas = spk_session.read.csv(dir_dados_tratados + barra + arq_dados_tratados, header=True)
+    df_vendas = df_vendas.toPandas()
+
+    df_vendas['linha_produto_nro'] = df_vendas['linha_produto_nro'].astype(npint64)
+    df_vendas['ano'] = df_vendas['ano'].astype(npint64)
+    df_vendas['mes'] = df_vendas['mes'].astype(npint64)
+    df_vendas['dia'] = df_vendas['dia'].astype(npint64)
+    df_vendas['preco_unitario'] = df_vendas['preco_unitario'].astype(float)
+    df_vendas['custo'] = df_vendas['custo'].astype(float)  
+    df_vendas['dia_semana'] = df_vendas['dia_semana'].astype(npint64)  
+    df_vendas['feriado'] = df_vendas['feriado'].astype(npint64)
+    df_vendas['qtde'] = df_vendas['qtde'].astype(float)
+
+    return df_vendas
 
 # faz a leitura do arquivo e coloca na memória
 @st.cache_data
@@ -50,7 +115,7 @@ dir_par = 'parametros'
 dir_S3 = 'vendas-supermarket-s3'
 dir_S3_tratados = 'vendas-supermarket-s3-tratados'
 dir_S3_modelos = 'vendas-supermarket-s3-modelos'
-arq_dados = 'X_supermarket_sales.csv'
+arq_dados = 'df_supermarket_sales.csv'
 arq_keys = 'parametros/chaves_acesso.txt'
 barra = '/'
 
@@ -71,7 +136,7 @@ arq_par.close()
 # baixa arquivo de vendas tratado
 retorno = 'ok'
 #**************** comentado para que o kernel não trave se não existir um bucket s3 criado
-#retorno = ds3.download_s3(
+#retorno = download_s3(
 #            dir_S3_tratados, 
 #            arq_dados_tratados, 
 #            dir_dados_tratados + barra + arq_dados_tratados, 
@@ -97,19 +162,19 @@ if retorno != 'ok':
             ' ***** não foi baixado')
     exit()    
 
-# le arquivo de vendas
-df_vendas = le_arquivo_vendas()
+# le arquivo de vendas com pandas
+#df_vendas = le_arquivo_vendas()
+
+# le arquivo de vendas usando a sessão do spark
+df_vendas = le_arquivo_vendas_spark()
+
+# faz leitura do arquivo de vendas consumindo a api 'vendas' do api_server
+#df_vendas = le_arquivo_vendas_consome_api()
 
 # le o arquivo de modelo para fazer predição
 Dtree_model = le_arquivo_modelo()
 
-# cria df da sessão spark com o conteúdo de df_vendas
-sdf = spk_session.createDataFrame(df_vendas)
-
-xx = spk_session.read.csv(dir_dados_tratados + barra + arq_dados_tratados, header=True)
-xxxx = xx.toPandas()
-xx.show()
-print(xxxx)
+print(df_vendas.info())
 
 #----------------------------------------------
 # Barra lateral sidebar
@@ -147,7 +212,7 @@ with tab1:
         dfx = df_vendas[['linha_produto_nro', 'mes', 'dia', 'preco_unitario', 'custo', 'dia_semana', 'feriado']]
         dfx2 = df_vendas[['linha_produto', 'qtde', 'linha_produto_nro', 'mes', 'dia', 'preco_unitario', 'custo', 'dia_semana', 'feriado']]
 
-        st.write(sdf)
+        st.write(dfx)
 
         dfx['preco_unitario'] = dfx['preco_unitario'] * 0.10
         qtde_vds = Dtree_model.predict(dfx)
