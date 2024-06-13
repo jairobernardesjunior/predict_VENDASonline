@@ -4,6 +4,7 @@
 from PIL import Image
 from numpy import int64 as npint64
 from pyspark.sql import SparkSession
+from pandasql import sqldf
 
 import pandas as pd
 import streamlit as st
@@ -163,10 +164,10 @@ if retorno != 'ok':
     exit()    
 
 # le arquivo de vendas com pandas
-#df_vendas = le_arquivo_vendas()
+df_vendas = le_arquivo_vendas()
 
 # le arquivo de vendas usando a sessão do spark
-df_vendas = le_arquivo_vendas_spark()
+#df_vendas = le_arquivo_vendas_spark()
 
 # faz leitura do arquivo de vendas consumindo a api 'vendas' do api_server
 #df_vendas = le_arquivo_vendas_consome_api()
@@ -174,7 +175,20 @@ df_vendas = le_arquivo_vendas_spark()
 # le o arquivo de modelo para fazer predição
 Dtree_model = le_arquivo_modelo()
 
-print(df_vendas.info())
+# encontra lista de anos no df_vendas
+df_ano = sqldf('select ano, max(ano), max(preco_unitario)  from df_vendas  group by ano  order by ano desc')
+ano_default = df_ano.loc[0][0]
+preco_default = df_ano.loc[0][2]
+list_ano = df_ano['ano'].values.tolist()
+
+# encontra lista de produtos no df_vendas
+df_produto = sqldf('select linha_produto, max(linha_produto) '\
+               '    from df_vendas '\
+               '    group by linha_produto '\
+               '    order by linha_produto'
+               )
+produto_defaut = df_produto.loc[0][0]
+list_produto = df_produto['linha_produto'].values.tolist()
 
 #----------------------------------------------
 # Barra lateral sidebar
@@ -193,32 +207,77 @@ image_path = './images/predict_vendas.png'
 ix = Image.open( image_path ) 
 st.sidebar.image( ix, width=240 )
 
+st.sidebar.markdown( '###### Informe somente uma informação de cada opção')
+
+#-------- cria objeto para selecionar o ano de referência
+xano = st.sidebar.multiselect(
+    'ANO de referência',
+    list_ano,
+    default=[ano_default]
+    )
+
+#-------- cria objeto para selecionar o produto para a predição
+xproduto = st.sidebar.multiselect(
+    'Produto para a predição',
+    list_produto,
+    default=[produto_defaut]
+    )
+
+#-------- cria objeto para selecionar o mês da predição
+xmes = st.sidebar.multiselect(
+    'Mês para a predição',
+    ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro',
+     'Outubro', 'Novembro', 'Dezembro'],
+    default=['Janeiro']
+    )
+
+#-------- cria objeto para selecionar o dia da predição
+xdia = st.sidebar.multiselect(
+    'Dia para a predição',
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 
+     25, 26, 27, 28, 29, 30, 31],
+    default=[15]
+    )
+
+#-------- cria objeto para receber o preço unitário de venda a ser praticado
+xpreço_unitario = st.number_input("Preço Unitário de Venda que será praticado", 
+                                  value=preco_default, step=0.5, format="%0.2f")
+
 #-------- Empresa
-st.sidebar.markdown('###### Powered by Jairo Bernardes Júnior')
+st.sidebar.markdown('#### Powered by Jairo Bernardes Júnior')
 #st.sidebar.markdown( '##### **Site em constante evolução')
 
+# seleciona dados do maior ano
+dfx = df_vendas[(df_vendas['ano'] == xano[0]) &
+                (df_vendas['linha_produto'] == xproduto[0]) &
+                (df_vendas['mes'] == xmes[0]) &
+                (df_vendas['dia'] == xdia[0])
+                ]
+
+dfx = df_vendas[['linha_produto_nro', 'mes', 'dia', 'preco_unitario', 'custo', 'dia_semana', 'feriado']]
+dfx2 = df_vendas[['ano', 'mes', 'dia', 'linha_produto', 'preco_unitario', 'custo']]\
+    .sort_values(['ano', 'mes', 'dia', 'linha_produto'], ascending=False)
+
+print(dfx2.info())
+        
 #----------------------------------------------
 # gráficos
 #----------------------------------------------
 #-------- Abas de finalidade dos dados
-tab1, tab2, tab3 = st.tabs( ['Predição', '*****', '*****'])
+tab1, tab2, tab3 = st.tabs( ['Predição de Vendas', '*****', '*****'])
 
 #-------- Visão Estratégica
 with tab1:
     with st.container():
         # Faz a predição da quantidade que será vendida por produto e dia da semana
-        st.header( 'Faz a predição da quantidade que será vendida por produto e dia da semana' )
+        st.markdown('##### Predição da quantidade que será vendida por produto e dia da semana' )
+        st.header(xproduto[0])
 
-        dfx = df_vendas[['linha_produto_nro', 'mes', 'dia', 'preco_unitario', 'custo', 'dia_semana', 'feriado']]
-        dfx2 = df_vendas[['linha_produto', 'qtde', 'linha_produto_nro', 'mes', 'dia', 'preco_unitario', 'custo', 'dia_semana', 'feriado']]
-
-        st.write(dfx)
+        st.write(dfx2)
 
         dfx['preco_unitario'] = dfx['preco_unitario'] * 0.10
         qtde_vds = Dtree_model.predict(dfx)
         st.write(qtde_vds)
-        exit()
-
 
         #[73.00, 435.66, 21.783, 0, 0, 1, 0, 5, 1]
         #X_enter = [2.00, 1.66, 21.783, 0, 0, 1, 0, 5, 1]
