@@ -27,8 +27,13 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.sidebar.markdown('###### Powered by Jairo Bernardes Júnior')
+st.sidebar.markdown('#### Powered by Jairo Bernardes Júnior')
 #st.sidebar.markdown( '##### **Site em constante evolução')
+
+# carrega imagem para o sidebar (barra lateral)
+image_path = 'escopo_predict_VENDASonline.png'
+image2 = Image.open( image_path )
+st.image( image2, width=500 )
 
 # exibe explicação sobre o site vendas_SUPERMERCADOpredict_dash
 st.markdown(

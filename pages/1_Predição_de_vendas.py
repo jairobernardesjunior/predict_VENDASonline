@@ -5,6 +5,7 @@ from PIL import Image
 from numpy import int64 as npint64
 from pyspark.sql import SparkSession
 from pandasql import sqldf
+from datetime import datetime as dt
 
 import pandas as pd
 import streamlit as st
@@ -27,6 +28,7 @@ dir_dados_tratados = 'arquivos_tratados'
 dir_modelos = 'modelos'
 arq_dados_tratados = 'X_supermarket_sales.csv' 
 arq_modelos = 'dtree_model_vendasSupermarket.pkl'
+dfg_referencia = pd.DataFrame()
     
 # cria uma sessão spark
 findspark.init('c:/spark') 
@@ -107,6 +109,17 @@ def le_arquivo_modelo():
     global dir_modelos
     global arq_modelos    
     return joblib.load(dir_modelos + barra + arq_modelos)
+
+# encontra o mês em formato numérico
+def encontra_mes_nro(xmes, list_mes):
+    mes_nro = 1
+    for nome_mes in list_mes:
+        if xmes == nome_mes:
+            return mes_nro
+        mes_nro += 1
+
+    st.markdown(f'<h1 style="color:#e32636;font-size:40px;">{"Mês nro não encontrado"}</h1>', unsafe_allow_html=True)
+    exit()
     
 #------------------- INÍCIO
 
@@ -131,6 +144,14 @@ secret_key = secret_key[0:len(secret_key) -1]
 
 regiao = arq_par.readline()
 arq_par.close()
+
+# variáveis gerais
+list_mes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro',
+     'Outubro', 'Novembro', 'Dezembro']
+list_dias = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 
+     25, 26, 27, 28, 29, 30, 31]
+list_dia_semana = ['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 
+                   'sábado', 'domingo']
 
 # ******************** CHAMA A FUNÇÃO DE DOWNLOAD DO BUCKET S3 para baixar os arquivos tratados
 
@@ -207,11 +228,9 @@ image_path = './images/predict_vendas.png'
 ix = Image.open( image_path ) 
 st.sidebar.image( ix, width=240 )
 
-st.sidebar.markdown( '###### Informe somente uma informação de cada opção')
-
 #-------- cria objeto para selecionar o ano de referência
 xano = st.sidebar.multiselect(
-    'ANO de referência',
+    'ANO de referência (anterior ao atual)',
     list_ano,
     default=[ano_default]
     )
@@ -226,58 +245,95 @@ xproduto = st.sidebar.multiselect(
 #-------- cria objeto para selecionar o mês da predição
 xmes = st.sidebar.multiselect(
     'Mês para a predição',
-    ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro',
-     'Outubro', 'Novembro', 'Dezembro'],
+    list_mes,
     default=['Janeiro']
     )
 
 #-------- cria objeto para selecionar o dia da predição
 xdia = st.sidebar.multiselect(
     'Dia para a predição',
-    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 
-     25, 26, 27, 28, 29, 30, 31],
-    default=[15]
+    list_dias,
+    default=[1]
     )
 
-#-------- cria objeto para receber o preço unitário de venda a ser praticado
-xpreço_unitario = st.number_input("Preço Unitário de Venda que será praticado", 
-                                  value=preco_default, step=0.5, format="%0.2f")
+st.markdown(f'<h1 style="color:#e32636;font-size:10px;">{""}</h1>', unsafe_allow_html=True)
+if len(xano) != 1:
+    st.markdown(f'<h1 style="color:#e32636;font-size:40px;">{"Ano de referência não informado ou informado mais de uma vez"}</h1>', unsafe_allow_html=True)
+    exit()
+
+if len(xproduto) != 1:
+    st.markdown(f'<h1 style="color:#e32636;font-size:40px;">{"Produto não informado ou informado mais de uma vez"}</h1>', unsafe_allow_html=True)
+    exit()
+
+if len(xmes) != 1:
+    st.markdown(f'<h1 style="color:#e32636;font-size:40px;">{"Mês não informado ou informado mais de uma vez"}</h1>', unsafe_allow_html=True)
+    exit()
+
+if len(xdia) != 1:
+    st.markdown(f'<h1 style="color:#e32636;font-size:40px;">{"Dia não informado ou informado mais de uma vez"}</h1>', unsafe_allow_html=True)
+    exit()              
 
 #-------- Empresa
 st.sidebar.markdown('#### Powered by Jairo Bernardes Júnior')
 #st.sidebar.markdown( '##### **Site em constante evolução')
 
+#-------- cria objeto para receber o preço unitário de venda a ser praticado
+xpreco_unitario = st.number_input("Preço Unitário de Venda que será praticado", 
+                                value=preco_default, step=0.5, format="%0.2f")
+
 # seleciona dados do maior ano
+mes_nro = encontra_mes_nro(xmes[0], list_mes)
 dfx = df_vendas[(df_vendas['ano'] == xano[0]) &
                 (df_vendas['linha_produto'] == xproduto[0]) &
-                (df_vendas['mes'] == xmes[0]) &
+                (df_vendas['mes'] == mes_nro) &
                 (df_vendas['dia'] == xdia[0])
                 ]
 
-dfx = df_vendas[['linha_produto_nro', 'mes', 'dia', 'preco_unitario', 'custo', 'dia_semana', 'feriado']]
-dfx2 = df_vendas[['ano', 'mes', 'dia', 'linha_produto', 'preco_unitario', 'custo']]\
-    .sort_values(['ano', 'mes', 'dia', 'linha_produto'], ascending=False)
+if len(dfx) < 1:
+    st.markdown(f'<h1 style="color:#e32636;font-size:40px;">{"Não existe dados de referência para os parâmetros selecionados"}</h1>', unsafe_allow_html=True)
+    exit() 
 
-print(dfx2.info())
-        
+dfx2 = dfx[['ano', 'mes', 'dia', 'linha_produto', 'preco_unitario', 'custo', 'qtde']]\
+    .sort_values(['ano', 'mes', 'dia', 'linha_produto'], ascending=False)
+dfx = dfx[['linha_produto_nro', 'mes', 'dia', 'preco_unitario', 'custo', 'dia_semana', 'feriado']]
+
+ano_atual = dt.today()
+ano_atual = ano_atual.year
+data_pred = "{:02d}".format(xdia[0]) + '-' + "{:02d}".format(mes_nro) + '-' + \
+    "{:04d}".format(ano_atual) + ' 01:01:01'
+
+date_format = '%d-%m-%Y %H:%M:%S'
+data_pred = dt.strptime(data_pred, date_format)
+dfx2['data_predicao'] = data_pred
+dfx2['dia_semana_predicao'] = dfx2['data_predicao'].dt.weekday
+dia_semana_nro = dfx2['dia_semana_predicao'].unique()[0]
+
 #----------------------------------------------
 # gráficos
 #----------------------------------------------
 #-------- Abas de finalidade dos dados
-tab1, tab2, tab3 = st.tabs( ['Predição de Vendas', '*****', '*****'])
+tab1, tab2, tab3 = st.tabs( ['Predição de Vendas', 'Vendas Anteriores', '*****'])
 
 #-------- Visão Estratégica
 with tab1:
     with st.container():
         # Faz a predição da quantidade que será vendida por produto e dia da semana
-        st.markdown('##### Predição da quantidade que será vendida por produto e dia da semana' )
+        st.markdown('##### Predição da quantidade que será vendida por produto e dia da semana' )     
         st.header(xproduto[0])
 
-        st.write(dfx2)
-
-        dfx['preco_unitario'] = dfx['preco_unitario'] * 0.10
         qtde_vds = Dtree_model.predict(dfx)
-        st.write(qtde_vds)
+
+        qtde_vds = pd.DataFrame(qtde_vds)
+        qtde_vds.columns = ['qtde']
+        qtde_vds = qtde_vds['qtde'].sum()
+
+        ydia = "% s" % xdia[0]
+        st.write('A previsão é de que', qtde_vds, 
+                 'unidades serão vendidas em', xdia[0], ' de ', xmes[0],
+                 ' - ', list_dia_semana[dia_semana_nro])
+
+        st.markdown('##### referência:' )
+        st.write(dfx2)       
 
         #[73.00, 435.66, 21.783, 0, 0, 1, 0, 5, 1]
         #X_enter = [2.00, 1.66, 21.783, 0, 0, 1, 0, 5, 1]
