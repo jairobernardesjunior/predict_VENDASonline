@@ -16,6 +16,7 @@ import boto3
 import botocore
 import findspark
 import requests
+import plotly.express as px
 
 # define a exibição total de linhas e colunas na exibição
 #pd.set_option('display.max_rows', None)
@@ -199,7 +200,6 @@ Dtree_model = le_arquivo_modelo()
 # encontra lista de anos no df_vendas
 df_ano = sqldf('select ano, max(ano), max(preco_unitario)  from df_vendas  group by ano  order by ano desc')
 ano_default = df_ano.loc[0][0]
-preco_default = df_ano.loc[0][2]
 list_ano = df_ano['ano'].values.tolist()
 
 # encontra lista de produtos no df_vendas
@@ -277,36 +277,78 @@ if len(xdia) != 1:
 st.sidebar.markdown('#### Powered by Jairo Bernardes Júnior')
 #st.sidebar.markdown( '##### **Site em constante evolução')
 
-#-------- cria objeto para receber o preço unitário de venda a ser praticado
-xpreco_unitario = st.number_input("Preço Unitário de Venda que será praticado", 
-                                value=preco_default, step=0.5, format="%0.2f")
-
-# seleciona dados do maior ano
+#-------- captura o nro do dia da semana para a data de predição
+df_dia_semana = pd.DataFrame({'data_predicao': ['01-01-2000'], 'dia_semana_predicao': [0]})
 mes_nro = encontra_mes_nro(xmes[0], list_mes)
-dfx = df_vendas[(df_vendas['ano'] == xano[0]) &
-                (df_vendas['linha_produto'] == xproduto[0]) &
-                (df_vendas['mes'] == mes_nro) &
-                (df_vendas['dia'] == xdia[0])
-                ]
+
+date_format = '%Y-%m-%d %H:%M:%S'
+
+data_atual = dt.today()
+ano_atual = data_atual.year
+data_pred =  \
+    "{:04d}".format(ano_atual) + '-' + "{:02d}".format(mes_nro) + '-' +"{:02d}".format(xdia[0]) + ' 01:01:01' 
+data_pred = dt.strptime(data_pred, date_format)      
+
+df_dia_semana['data_predicao'] = data_pred
+df_dia_semana['dia_semana_predicao'] = df_dia_semana['data_predicao'].dt.weekday
+dia_semana_nro = df_dia_semana['dia_semana_predicao'].unique()[0]
+
+list_id = [0]
+linhas = df_vendas.shape[0]
+
+for i in range(1, linhas, 1):
+    list_id.append(i)
+
+df_id = pd.DataFrame(list_id)
+df_id.columns = ['id']
+df_vendas = pd.concat([df_id, df_vendas], axis=1)
+
+# seleciona dados do dia da semana mais recente dentro do mês escolhido e do ano de referência
+dfx = sqldf(f'select ano, mes, linha_produto, dia, linha_produto_nro, \
+                   preco_unitario, custo, dia_semana, \
+                   feriado, qtde \
+                        from df_vendas \
+                        where ano = {xano[0]} and \
+                            mes = {mes_nro} and \
+                            dia_semana = {dia_semana_nro} and \
+                            linha_produto = "{xproduto[0]}" and \
+                            dia = (select dia \
+                                        from df_vendas \
+                                        where ano = {xano[0]} and \
+                                            mes = {mes_nro} and \
+                                            dia_semana = {dia_semana_nro} and \
+                                            linha_produto = "{xproduto[0]}" \
+                                        group by dia \
+                                        order by dia desc \
+                                        limit 1) \
+                    order by ano, mes'
+               )
+
+# vamos duplicar os registros apenas para resultado de teste
+dfx = pd.concat([dfx, dfx, dfx, dfx], axis=0)
+dfx = dfx.reset_index()
 
 if len(dfx) < 1:
     st.markdown(f'<h1 style="color:#e32636;font-size:40px;">{"Não existe dados de referência para os parâmetros selecionados"}</h1>', unsafe_allow_html=True)
     exit() 
 
-dfx2 = dfx[['ano', 'mes', 'dia', 'linha_produto', 'preco_unitario', 'custo', 'qtde']]\
+dfx2 = dfx[['ano', 'mes', 'dia', 'linha_produto', 'preco_unitario', 'custo', 'dia_semana', 'qtde']]\
     .sort_values(['ano', 'mes', 'dia', 'linha_produto'], ascending=False)
 dfx = dfx[['linha_produto_nro', 'mes', 'dia', 'preco_unitario', 'custo', 'dia_semana', 'feriado']]
 
-ano_atual = dt.today()
-ano_atual = ano_atual.year
-data_pred = "{:02d}".format(xdia[0]) + '-' + "{:02d}".format(mes_nro) + '-' + \
-    "{:04d}".format(ano_atual) + ' 01:01:01'
+preco_default = dfx.loc[0][3]
+dia_ref = dfx2.loc[0][2]
 
-date_format = '%d-%m-%Y %H:%M:%S'
-data_pred = dt.strptime(data_pred, date_format)
-dfx2['data_predicao'] = data_pred
-dfx2['dia_semana_predicao'] = dfx2['data_predicao'].dt.weekday
-dia_semana_nro = dfx2['dia_semana_predicao'].unique()[0]
+data_ref = \
+    "{:04d}".format(xano[0]) + '-' + "{:02d}".format(mes_nro) + '-' +"{:02d}".format(dia_ref) + ' 01:01:01' 
+data_ref = dt.strptime(data_ref, date_format)
+
+#if data_ref > data_pred:
+#    st.markdown(f'<h1 style="color:#e32636;font-size:40px;">{"Data de predição menor que a data de referência"}</h1>', unsafe_allow_html=True)
+#    exit()  
+#if data_atual > data_pred:
+#    st.markdown(f'<h1 style="color:#e32636;font-size:40px;">{"Data atual maior que a data de predição"}</h1>', unsafe_allow_html=True)
+#    exit()
 
 #----------------------------------------------
 # gráficos
@@ -318,9 +360,17 @@ tab1, tab2, tab3 = st.tabs( ['Predição de Vendas', 'Vendas Anteriores', '*****
 with tab1:
     with st.container():
         # Faz a predição da quantidade que será vendida por produto e dia da semana
-        st.markdown('##### Predição da quantidade que será vendida por produto e dia da semana' )     
+        st.markdown('##### Predição da quantidade que será vendida por produto e dia da semana no ano corrente' )   
+
+        #st.write('data atual', data_atual, 'data predição', data_pred, 'data referência', data_ref)
+
         st.header(xproduto[0])
 
+        #-------- cria objeto para receber o preço unitário de venda a ser praticado
+        xpreco_unitario = st.number_input("Preço Unitário de Venda que será praticado (R$)", 
+                                value=preco_default, step=0.5, format="%0.2f")  
+
+        dfx['preco_unitario'] = xpreco_unitario
         qtde_vds = Dtree_model.predict(dfx)
 
         qtde_vds = pd.DataFrame(qtde_vds)
@@ -328,9 +378,10 @@ with tab1:
         qtde_vds = qtde_vds['qtde'].sum()
 
         ydia = "% s" % xdia[0]
-        st.write('A previsão é de que', qtde_vds, 
-                 'unidades serão vendidas em', xdia[0], ' de ', xmes[0],
-                 ' - ', list_dia_semana[dia_semana_nro])
+        st.write('Para o preço unitário de', xpreco_unitario,
+                 '. A previsão de vendas é de', qtde_vds, 
+                 'unidades em', xdia[0], ' de ', xmes[0],
+                 ' - ', list_dia_semana[dia_semana_nro], ' - ', data_pred.strftime('%d/%m/%Y'))
 
         st.markdown('##### referência:' )
         st.write(dfx2)       
@@ -363,3 +414,14 @@ with tab1:
 
         #qtde_vds = Dtree_model.predict(X_enter)
         #st.write(qtde_vds)
+
+with tab2:
+    with st.container():
+        # Percentual de valor unitário e vendas
+        st.header( 'Percentual de quantidade vendida por valor unitário de venda em ')             
+        st.write('data referência', data_ref)
+
+        # passa os dados para o gráfico e exibe
+        fig = px.pie( dfx2, values='qtde', names='preco_unitario', title='quantidade vendida por valor unitário')
+        fig.update_layout(autosize=False)
+        st.plotly_chart( fig, use_container_width=True )  
