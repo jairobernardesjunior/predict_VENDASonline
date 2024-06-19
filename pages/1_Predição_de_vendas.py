@@ -9,8 +9,8 @@ from datetime import datetime as dt
 
 import pandas as pd
 import streamlit as st
-import array as np
-import sklearn
+#import array as np
+#import sklearn
 import joblib
 import boto3
 import botocore
@@ -228,18 +228,18 @@ image_path = './images/predict_vendas.png'
 ix = Image.open( image_path ) 
 st.sidebar.image( ix, width=240 )
 
-#-------- cria objeto para selecionar o ano de referência
-xano = st.sidebar.multiselect(
-    'ANO de referência (anterior ao atual)',
-    list_ano,
-    default=[ano_default]
-    )
-
 #-------- cria objeto para selecionar o produto para a predição
 xproduto = st.sidebar.multiselect(
     'Produto para a predição',
     list_produto,
     default=[produto_defaut]
+    )
+
+#-------- cria objeto para selecionar o dia da predição
+xdia = st.sidebar.multiselect(
+    'Dia para a predição',
+    list_dias,
+    default=[1]
     )
 
 #-------- cria objeto para selecionar o mês da predição
@@ -249,11 +249,11 @@ xmes = st.sidebar.multiselect(
     default=['Janeiro']
     )
 
-#-------- cria objeto para selecionar o dia da predição
-xdia = st.sidebar.multiselect(
-    'Dia para a predição',
-    list_dias,
-    default=[1]
+#-------- cria objeto para selecionar o ano de referência
+xano = st.sidebar.multiselect(
+    'ANO de referência (Ano de vendas anterior)',
+    list_ano,
+    default=[ano_default]
     )
 
 st.markdown(f'<h1 style="color:#e32636;font-size:10px;">{""}</h1>', unsafe_allow_html=True)
@@ -378,10 +378,11 @@ with tab1:
         qtde_vds = qtde_vds['qtde'].sum()
 
         ydia = "% s" % xdia[0]
-        st.write('Para o preço unitário de', xpreco_unitario,
-                 '. A previsão de vendas é de', qtde_vds, 
-                 'unidades em', xdia[0], ' de ', xmes[0],
-                 ' - ', list_dia_semana[dia_semana_nro], ' - ', data_pred.strftime('%d/%m/%Y'))
+
+        st.write('A previsão de vendas é de', qtde_vds, ':red[unidades]')        
+        st.write('Para o preço unitário de', xpreco_unitario, ':red[Reais,]')
+        st.write('Em', xdia[0], ' de ', xmes[0],
+                 ', ', list_dia_semana[dia_semana_nro], ', ', data_pred.strftime('%d/%m/%Y'))
 
         st.markdown('##### referência:' )
         st.write(dfx2)       
@@ -418,10 +419,13 @@ with tab1:
 with tab2:
     with st.container():
         # Percentual de valor unitário e vendas
-        st.header( 'Percentual de quantidade vendida por valor unitário de venda em ')             
-        st.write('data referência', data_ref)
+        st.header( 'Percentual de quantidade vendida por valor unitário de venda')             
+        st.write('Referência', data_ref, list_dia_semana[dia_semana_nro])
 
         # passa os dados para o gráfico e exibe
-        fig = px.pie( dfx2, values='qtde', names='preco_unitario', title='quantidade vendida por valor unitário')
+        fig = px.pie( dfx2, values='qtde', 
+                     names='preco_unitario', 
+                     title='quantidade vendida por valor unitário'
+                    )   
         fig.update_layout(autosize=False)
         st.plotly_chart( fig, use_container_width=True )  
