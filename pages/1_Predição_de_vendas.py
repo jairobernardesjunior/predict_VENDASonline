@@ -9,8 +9,6 @@ from datetime import datetime as dt
 
 import pandas as pd
 import streamlit as st
-#import array as np
-#import sklearn
 import joblib
 import boto3
 import botocore
@@ -32,8 +30,8 @@ arq_modelos = 'dtree_model_vendasSupermarket.pkl'
 dfg_referencia = pd.DataFrame()
     
 # cria uma sessão spark
-findspark.init('c:/spark') 
-spk_session = SparkSession.builder.appName('my_app').getOrCreate()
+#findspark.init('c:/spark') 
+#spk_session = SparkSession.builder.appName('my_app').getOrCreate()
 
 # faz o download de arquivo armazenado em bucket s3 da aws
 def download_s3(nome_buckets3, nome_arquivo, path_arquivo, access_key, secret_key, regiao):
@@ -82,7 +80,7 @@ def le_arquivo_vendas_consome_api():
 def le_arquivo_vendas_spark():
     global dir_dados_tratados
     global arq_dados_tratados 
-    df_vendas = spk_session.read.csv(dir_dados_tratados + barra + arq_dados_tratados, header=True)
+    df_vendas = pd.DataFrame() #spk_session.read.csv(dir_dados_tratados + barra + arq_dados_tratados, header=True)
     df_vendas = df_vendas.toPandas()
 
     df_vendas['linha_produto_nro'] = df_vendas['linha_produto_nro'].astype(npint64)
